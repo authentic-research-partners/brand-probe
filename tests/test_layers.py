@@ -35,7 +35,7 @@ def test_modules_obey_layers_and_no_cycles():
     assert modules.keys() == LAYERS.keys(), "Declare the layer of every new module."
     edges = {name: set() for name in modules}
     for name, path in modules.items():
-        for node in ast.walk(ast.parse(path.read_text())):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
             imported = []
             if isinstance(node, ast.ImportFrom) and node.module:
                 if node.module == "brandprobe":

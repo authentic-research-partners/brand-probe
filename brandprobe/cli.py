@@ -98,9 +98,9 @@ async def run_command(args: argparse.Namespace) -> None:
     )
     folder = root / ".brandprobe" / "reports"
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / f"{audit.id}.html").write_text(html_report(audit))
+    (folder / f"{audit.id}.html").write_text(html_report(audit), encoding="utf-8")
     (folder / f"{audit.id}.json").write_text(
-        __import__("json").dumps(report_data(audit), indent=2)
+        __import__("json").dumps(report_data(audit), indent=2), encoding="utf-8"
     )
     print(
         f"{audit.status}: {len(audit.observations)} responses saved. Report: {folder / (audit.id + '.html')}"

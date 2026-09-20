@@ -8,6 +8,10 @@ A model saying “I don’t know this brand” still mentions its name. BrandPro
 
 **Status: early working prototype.** Model generation and scoring have been tested with live API requests. Search and reference-fact checks have automated tests but have not yet been validated with live provider calls. This is a research aid, not a universal AI visibility score.
 
+**Start here:** [Step-by-step guide with screenshots and a three-model example](docs/USAGE.md).
+
+![Selected models and searchable Add buttons](docs/images/02-model-selection.png)
+
 ## What you can explore
 
 | Question | How BrandProbe helps |
@@ -22,15 +26,17 @@ The browser includes model search, Add/Remove controls, editable questions, cost
 
 ## Try it locally
 
-Requires **Python 3.13**, [uv](https://docs.astral.sh/uv/getting-started/installation/), and macOS or Linux. Local worker locking uses POSIX APIs; native Windows is not currently supported.
+Requires [uv](https://docs.astral.sh/uv/getting-started/installation/) and Git on **Windows, macOS, or Linux**. uv can install Python 3.13 for you. Native Windows locking is supported; a Windows/macOS/Linux CI matrix is included. This change has been tested locally on macOS; Windows CI has not yet been run.
 
 ```sh
 git clone https://github.com/authentic-research-partners/brand-probe.git
 cd brand-probe
-uv sync --extra dev
-source .venv/bin/activate
-brandprobe serve
+uv python install 3.13
+uv sync --locked
+uv run brandprobe serve
 ```
+
+The commands above also work in Windows PowerShell—no environment activation is needed. Keep the terminal open while using the app.
 
 Open **http://127.0.0.1:8765**. The browser starts in Demo mode. Preview the audit and run the synthetic example to explore the interface without contacting model providers. Synthetic results are labeled and are not findings about the example brand.
 
@@ -41,8 +47,11 @@ The included configurations use [Society of Teen Scientists](https://teenscienti
 1. Copy the credential template:
 
    ```sh
+   # macOS/Linux
    cp .env.example .env.local
    ```
+
+   In Windows PowerShell, use `Copy-Item .env.example .env.local` instead. Do not overwrite an existing credentials file.
 
 2. Add your OpenRouter key to `OPENROUTER_API_KEY` in `.env.local`.
 3. Choose **Live** in the browser. The public model catalog loads automatically. Search by model name or provider and click **Add** for each model you want to compare.
@@ -82,10 +91,10 @@ The scoring model reads the question and answer separately and classifies recogn
 ## Command-line use
 
 ```sh
-brandprobe demo
-brandprobe models
-brandprobe plan --config examples/sots-pilot.toml
-brandprobe run --config examples/sots-pilot.toml
+uv run brandprobe demo
+uv run brandprobe models
+uv run brandprobe plan --config examples/sots-pilot.toml
+uv run brandprobe run --config examples/sots-pilot.toml
 ```
 
 `plan` previews costs without inference. `run` requires typing `RUN` before making paid requests. Repeat `--model PROVIDER/MODEL_ID` to override the configured models. Model availability and prices are checked at preview time.
@@ -103,12 +112,11 @@ Keep one local instance per workspace. Restart the server after backend updates 
 One Python package with Pydantic contracts, TOML settings, async HTTP, SQLite evidence, and thin CLI/FastAPI adapters. The browser uses plain HTML, CSS, and JavaScript. See [architecture](docs/ARCHITECTURE.md) and [MVP status](docs/MVP.md).
 
 ```sh
-uv sync --extra dev
-source .venv/bin/activate
-pytest -q
-ruff format --check .
-ruff check .
-mypy brandprobe
+uv sync --locked --extra dev
+uv run pytest -q
+uv run ruff format --check .
+uv run ruff check .
+uv run mypy brandprobe
 node --check brandprobe/static/app.js
 ```
 

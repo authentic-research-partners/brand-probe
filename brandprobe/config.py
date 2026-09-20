@@ -8,7 +8,7 @@ from brandprobe.schemas import AuditConfig
 
 
 def load_config(path: Path) -> AuditConfig:
-    return AuditConfig.model_validate(tomllib.loads(path.read_text()))
+    return AuditConfig.model_validate(tomllib.loads(path.read_text(encoding="utf-8")))
 
 
 def api_key(root: Path, name: str = "OPENROUTER_API_KEY") -> str:

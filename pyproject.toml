@@ -9,7 +9,15 @@ description = "Evidence-first audits of how AI models recognize and recommend br
 requires-python = ">=3.13,<3.14"
 readme = "README.md"
 license = {file = "LICENSE"}
-dependencies = ["httpx>=0.28,<1", "pydantic>=2.10,<3", "loguru>=0.7,<1", "python-dotenv>=1,<2", "fastapi>=0.115,<1", "uvicorn>=0.34,<1"]
+dependencies = [
+    "httpx>=0.28,<1",
+    "pydantic>=2.10,<3",
+    "loguru>=0.7,<1",
+    "python-dotenv>=1,<2",
+    "fastapi>=0.115,<1",
+    "uvicorn>=0.34,<1",
+    "filelock>=3.16,<4",
+]
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<10", "ruff>=0.15,<1", "mypy>=1.18,<2"]

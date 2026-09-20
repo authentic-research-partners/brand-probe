@@ -1,12 +1,14 @@
-# Starter scope inferred from the public homepage; edit before a live audit.
+# Three-model walkthrough: 5 questions x 3 models x 3 repetitions = 45 answers.
+# Scoring adds up to 45 requests. Preview and approve before any paid execution.
+# The audience is an example assumption; edit it for your study.
 models = ["openai/gpt-5.6-luna", "anthropic/claude-sonnet-5", "google/gemini-3.8-flash"]
-evaluator_model = "openai/gpt-5.6-luna"
+evaluator_model = "anthropic/claude-sonnet-5"
 reasoning_effort = "low"
 evaluation_interval_seconds = 3
 repetitions = 3
 max_tokens = 4096
 concurrency = 3
-budget_usd = "5.00"
+budget_usd = "7.00"
 
 [brand]
 name = "Society of Teen Scientists"
@@ -27,9 +29,9 @@ kind = "recognition"
 text = "What do you know about physics education at Society of Teen Scientists?"
 
 [[prompts]]
-id = "sots-04"
+id = "sots-06"
 kind = "discovery"
-text = "What programs offer rigorous physics education beyond the school curriculum for middle and high school students in the United States?"
+text = "Which online communities let teenagers share and discuss original scientific research?"
 
 [[prompts]]
 id = "sots-05"
@@ -37,6 +39,11 @@ kind = "discovery"
 text = "Where can a high school student work on authentic physics research with scientists?"
 
 [[prompts]]
-id = "sots-09"
+id = "sots-08"
 kind = "discovery"
-text = "Which organizations help teenage scientists publish or present their work?"
+text = "Where can a motivated middle school student study advanced physics with expert guidance?"
+
+[[competitors]]
+name = "Lumiere Education"
+domain = "lumiere-education.com"
+aliases = ["Lumiere"]

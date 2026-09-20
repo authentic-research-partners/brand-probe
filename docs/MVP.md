@@ -19,7 +19,7 @@ The automated suite covers cost limits, credential isolation, provider failures,
 
 Live generation and semantic scoring have been exercised, including a completed five-question, three-model run with three repetitions: all 45 answers and 45 assessments completed. Earlier pilots exposed truncation, rate limits, and ambiguous judge labels; those observations informed the current exclusions and evidence validation.
 
-Reference-fact checking and Brave Search have mocked tests but have not yet been validated through live provider calls. Interface behavior has automated state tests; browser visual verification remains outstanding.
+Reference-fact checking and Brave Search have mocked tests but have not yet been validated through live provider calls. Interface behavior has automated state tests; setup, model selection, cost preview, and historical report screens have now been inspected in the browser and captured in the [usage guide](USAGE.md).
 
 ## Before each real study
 
@@ -33,3 +33,11 @@ Reference-fact checking and Brave Search have mocked tests but have not yet been
 ## Outside this MVP
 
 Trend comparisons, automatic source collection, independent exhaustive fact verification, and distributed job scheduling. Continuation preserves original evidence and never automatically retries uncertain, scoring, or search requests. Legacy runs without a dispatch journal remain conservatively classified as uncertain.
+
+## Cross-platform setup and walkthrough
+
+- [x] Replace the Unix-only lock with native cross-platform file locking.
+- [x] Test separate-process exclusion, release after termination, and UTF-8 configuration/exports.
+- [x] Add Windows/macOS/Linux CI configuration and platform-neutral `uv run` instructions.
+- [x] Add a documented three-model preset and real interface screenshots.
+- [ ] Run the new CI workflow on native Windows and Linux; macOS checks pass locally.

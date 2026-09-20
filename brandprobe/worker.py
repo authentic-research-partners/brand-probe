@@ -1,6 +1,6 @@
 """Exclusive local worker lease and crash classification, with no paid retries."""
 
-import fcntl
+from filelock import FileLock, Timeout
 from contextlib import contextmanager
 from pathlib import Path
 from brandprobe.db import store
@@ -25,17 +25,18 @@ def work_items(audit: Audit) -> list[WorkItem]:
 def lease(root: Path):
     folder = root / ".brandprobe"
     folder.mkdir(parents=True, exist_ok=True)
-    with (folder / "worker.lock").open("a") as handle:
-        try:
-            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as exc:
-            raise BrandProbeError(
-                "Another BrandProbe worker is active in this workspace."
-            ) from exc
-        try:
-            yield
-        finally:
-            fcntl.flock(handle, fcntl.LOCK_UN)
+    # FileLock uses native OS locks on Windows and Unix; process exit releases them.
+    lock = FileLock(folder / "worker.lock", timeout=0)
+    try:
+        lock.acquire()
+    except Timeout as exc:
+        raise BrandProbeError(
+            "Another BrandProbe worker is active in this workspace."
+        ) from exc
+    try:
+        yield
+    finally:
+        lock.release()
 
 
 def recover(root: Path, exclude_id: str | None = None) -> int:
