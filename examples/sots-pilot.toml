@@ -1,0 +1,42 @@
+# Starter scope inferred from the public homepage; edit before a live audit.
+models = ["openai/gpt-5.6-luna", "anthropic/claude-sonnet-5", "google/gemini-3.8-flash"]
+evaluator_model = "openai/gpt-5.6-luna"
+reasoning_effort = "low"
+evaluation_interval_seconds = 3
+repetitions = 3
+max_tokens = 4096
+concurrency = 3
+budget_usd = "5.00"
+
+[brand]
+name = "Society of Teen Scientists"
+domain = "teenscientists.org"
+aliases = []
+audience = "Middle school, high school, and homeschool students; parents seeking physics study and research opportunities"
+market = "United States and international online community"
+language = "English"
+
+[[prompts]]
+id = "sots-01"
+kind = "recognition"
+text = "What is the Society of Teen Scientists, and what does it offer?"
+
+[[prompts]]
+id = "sots-03"
+kind = "recognition"
+text = "What do you know about physics education at Society of Teen Scientists?"
+
+[[prompts]]
+id = "sots-04"
+kind = "discovery"
+text = "What programs offer rigorous physics education beyond the school curriculum for middle and high school students in the United States?"
+
+[[prompts]]
+id = "sots-05"
+kind = "discovery"
+text = "Where can a high school student work on authentic physics research with scientists?"
+
+[[prompts]]
+id = "sots-09"
+kind = "discovery"
+text = "Which organizations help teenage scientists publish or present their work?"

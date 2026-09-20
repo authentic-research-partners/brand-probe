@@ -1,0 +1,91 @@
+# Starter scope inferred from the public homepage; edit before a live audit.
+models = []
+evaluation_interval_seconds = 3
+reasoning_effort = "low"
+repetitions = 3
+max_tokens = 4096
+concurrency = 3
+budget_usd = "5.00"
+
+[brand]
+name = "Society of Teen Scientists"
+domain = "teenscientists.org"
+aliases = []
+audience = "Middle school, high school, and homeschool students; parents seeking physics study and research opportunities"
+market = "United States and international online community"
+language = "English"
+
+[[prompts]]
+id = "sots-01"
+kind = "recognition"
+text = "What is the Society of Teen Scientists, and what does it offer?"
+
+[[prompts]]
+id = "sots-02"
+kind = "recognition"
+text = "Who is the Society of Teen Scientists intended for? State what you know and what you cannot verify."
+
+[[prompts]]
+id = "sots-03"
+kind = "recognition"
+text = "What do you know about physics education at Society of Teen Scientists?"
+
+[[prompts]]
+id = "sots-04"
+kind = "discovery"
+text = "What programs offer rigorous physics education beyond the school curriculum for middle and high school students in the United States?"
+
+[[prompts]]
+id = "sots-05"
+kind = "discovery"
+text = "Where can a high school student work on authentic physics research with scientists?"
+
+[[prompts]]
+id = "sots-06"
+kind = "discovery"
+text = "Which online communities let teenagers share and discuss original scientific research?"
+
+[[prompts]]
+id = "sots-07"
+kind = "discovery"
+text = "What are good physics enrichment options for homeschooled high school students in the United States?"
+
+[[prompts]]
+id = "sots-08"
+kind = "discovery"
+text = "Where can a motivated middle school student study advanced physics with expert guidance?"
+
+[[prompts]]
+id = "sots-09"
+kind = "discovery"
+text = "Which organizations help teenage scientists publish or present their work?"
+
+[[prompts]]
+id = "sots-10"
+kind = "discovery"
+text = "What programs help high school students develop experimental research skills in physics?"
+
+[[prompts]]
+id = "sots-11"
+kind = "discovery"
+text = "Where can teenagers prepare for the International Young Physicists Tournament?"
+
+[[prompts]]
+id = "sots-12"
+kind = "discovery"
+text = "What physics programs near Princeton, New Jersey should a parent consider for a motivated teenager?"
+
+[[prompts]]
+id = "sots-13"
+kind = "discovery"
+text = "Which science communities offer international membership and opportunities for teenagers to meet other young researchers?"
+
+[[prompts]]
+id = "sots-14"
+kind = "discovery"
+text = "Recommend programs combining sustained physics study and research for high school students. Explain what a family should check before enrolling."
+
+[[prompts]]
+id = "sots-15"
+kind = "discovery"
+text = "How can a teenager find a scientific community with student journals, clubs, and research conferences?"

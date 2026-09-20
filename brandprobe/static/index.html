@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>BrandProbe · Brand visibility audit</title><link rel="stylesheet" href="/static/app.css"><script src="/static/app.js" defer></script></head>
+<body>
+<aside><a class="wordmark" href="/">BrandProbe<span class="mark" aria-hidden="true">◎</span></a><p class="aside-note">A closer look at how AI sees your brand.</p><nav><a href="#setup">Build an audit</a><a href="#results">Inspect results</a><a href="#history">Run history</a></nav><div class="aside-bottom"><span class="status-dot"></span> Local workspace<p id="key-status">Checking configuration…</p></div></aside>
+<main>
+<header><p>Brand visibility / new experiment</p><h1>Are you part of the answer?</h1><p class="intro">Ask the questions your audience asks. Compare mentions across models, then inspect the words behind the numbers.</p></header>
+<div class="demo-notice" id="mode-notice">Demo mode: synthetic examples only. No real models are being tested.</div>
+<div id="message" role="status" aria-live="polite"></div>
+<section id="setup"><div class="section-heading"><h2>Set the context</h2><span>1 / 3</span></div>
+<button type="button" id="load-pilot" class="quiet">Load the 5-question SoTS pilot</button>
+<form id="audit-form">
+<div class="fields"><label>Brand name<input id="brand" required></label><label>Website domain<input id="domain" required></label><label class="wide">Who are you trying to reach?<input id="audience" required></label><label>Market<input id="market" required></label><label>Language<input id="language" required></label></div>
+<p class="help">Context describes the audit. Models receive only the questions below, so unprompted questions stay unprompted.</p>
+<div class="section-heading"><h2>Choose the questions</h2><span>2 / 3</span></div><p class="help">Recognition questions name your brand. Discovery questions test whether it comes up on its own. Edit or remove questions before running.</p><div id="prompts"></div><button type="button" class="quiet" id="add-prompt">Add a question</button>
+<div class="section-heading"><h2>Choose how to run</h2><span>3 / 3</span></div>
+<div class="mode-picker"><label><input type="radio" name="mode" value="demo" checked> <strong>Try the demo</strong><span>Synthetic responses. No API calls or charges.</span></label><label><input type="radio" name="mode" value="live"> <strong>Run a live audit</strong><span>Real API responses with search disabled.</span></label></div>
+<div id="live-settings" hidden><button type="button" id="load-models" class="quiet">Load available models</button><label>Models <span class="help">Select up to six; use Command/Ctrl to select multiple.</span><select id="models" multiple size="8"></select></label><label>Scoring model<select id="evaluator"><option value="">Mention counts only (no semantic scoring)</option></select></label><p class="help">Optional scoring separates recognition from uncertainty and recommendation. Its requests and cost are included in the preview.</p></div>
+<label>Reasoning effort<select id="reasoning"><option value="">Provider defaults</option><option value="low">Low (when supported)</option><option value="medium">Medium (when supported)</option><option value="high">High (when supported)</option></select></label>
+<div class="fields compact"><label>Output token limit per answer<input id="max-tokens" type="number" min="64" max="16384" step="1" required value="4096"><span class="help">Shared by reasoning and visible text. A small limit can produce no answer.</span></label><label>Repetitions per question<input id="repetitions" type="number" min="1" max="5" value="3" required></label><label>Budget for this run ($)<input id="budget" type="number" min="0" max="50" step="0.01" value="5" required></label></div>
+<div class="form-end"><p>Review the scope and price before anything runs.</p><button type="submit" id="preview">Preview audit</button></div>
+</form>
+<div id="preview-panel" class="preview" hidden><h3>Review this run</h3><p id="preview-copy"></p><p id="preview-cost"></p><p class="help">The reservation includes a buffer. Actual billing may differ; unknown costs stop further requests. API results are not a reproduction of consumer chat apps.</p><button id="run">Run demo</button></div>
+</section>
+<section id="results" hidden><div class="section-heading"><h2>Your audit</h2><span id="run-status"></span></div><p id="result-label" class="result-label"></p><p id="progress"></p><div class="exports" id="exports"></div><div class="table-wrap"><table><thead><tr><th>Model</th><th>Question type</th><th>Mentions / successful</th><th>Recognition / assessed</th><th>Recommendations / assessed</th><th>Excluded</th></tr></thead><tbody id="summary"></tbody></table></div><p class="help">A mention is not an endorsement. Errors and truncated answers are excluded. Recognition and discovery have separate denominators.</p><h3>Read the answers</h3><div id="evidence"></div></section>
+<section id="history"><div class="section-heading"><h2>Run history</h2><button class="quiet" id="refresh-history">Refresh</button></div><div id="history-list"><p class="help">Your completed and interrupted experiments will appear here.</p></div></section>
+<footer>BrandProbe measures a sample of answers, not a universal ranking.</footer>
+</main></body></html>

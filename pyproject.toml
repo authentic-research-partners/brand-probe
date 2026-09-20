@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "brandprobe"
+version = "0.1.0"
+description = "Evidence-first audits of how AI models recognize and recommend brands"
+requires-python = ">=3.13,<3.14"
+readme = "README.md"
+dependencies = ["httpx>=0.28,<1", "pydantic>=2.10,<3", "loguru>=0.7,<1", "python-dotenv>=1,<2", "fastapi>=0.115,<1", "uvicorn>=0.34,<1"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10", "ruff>=0.15,<1", "mypy>=1.18,<2"]
+
+[project.scripts]
+brandprobe = "brandprobe.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["brandprobe*"]
+
+[tool.setuptools.package-data]
+brandprobe = ["static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "B006", "B008", "B904", "ASYNC210", "ASYNC251"]
+
+[tool.mypy]
+plugins = ["pydantic.mypy"]
+check_untyped_defs = true
