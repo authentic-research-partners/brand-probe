@@ -10,8 +10,8 @@ The user requested this alignment on 2026-09-19 so that both projects use famili
 | --- | --- | --- |
 | Foundation | exceptions | Safe domain errors |
 | Vocabulary | schemas, config, db/connection | Pydantic contracts, TOML and environment readers, connection lifecycle |
-| Mechanisms | templates, fixtures, llm, measure, db/store | Exact messages, synthetic transport, OpenRouter transport, mechanical counts, persistence |
-| Subjects | planning, analyze | Price/scope review and evidence-bound semantic scoring |
+| Mechanisms | templates, fixtures, llm, search, measure, db/store | Exact messages, synthetic transport, OpenRouter transport, mechanical counts, persistence |
+| Subjects | planning, analyze, worker | Price/scope review and evidence-bound semantic scoring |
 | Composition | engine, report | Acquisition orchestration and portable presentation |
 | Entry | cli, __main__, web, __init__, db/__init__ | Process and HTTP adapters |
 
@@ -29,7 +29,7 @@ The planner estimates cost and reserves a conservative amount using UTF-8 bytes 
 
 Generation and optional scoring reservations must fit before approval. Each request reserves before dispatch; the reservation is never refunded within that run. Unknown cost or a receipt above the reservation stops new dispatches; already running requests can still finish and incur charges. No automatic paid retries: failures may have been billed. Reports sum known receipts and separately count unknown ones.
 
-Each completed observation is persisted. Graceful cancellation saves interrupted status. A hard process kill may leave a run marked running; history preserves it, but automatic crash recovery/resume and cross-process scheduling are not implemented. The browser permits one audit at a time in its process. Run one local instance per workspace.
+A filesystem lease (POSIX flock) serializes local workers. Each request is journaled before dispatch; receipts are persisted on completion. Cancellation classifies missing work, and startup or `brandprobe recover` marks abandoned running audits interrupted while holding the lease. Legacy entries without a journal remain uncertain. Never-dispatched generation work can be continued only through a fresh price preview and approval; in-flight/unknown requests are never retried. A unique database index allows one linked child run per parent, preventing duplicate continuations. Old evidence and costs stay in the parent. This is a local macOS/Linux worker, not a cross-host job queue.
 
 Plans expire after 15 minutes and browser plans are one-use. This is a local tool bound to 127.0.0.1, with a per-process mutation token, no CORS, restricted Host headers, and escaped output. It is not a multi-user hosted service.
 
@@ -44,3 +44,13 @@ The exploratory pilot used provider-default generation effort. The next-run pres
 A user-selected DeepSeek run exposed the original starter file's hidden 600-token ceiling. The interface now exposes the output limit and includes both it and reasoning effort in the cost preview. Shipped starter files use 4,096 output tokens and low reasoning; model support is validated before paid runs. Stored historical configurations retain their original limits.
 
 An empty truncated answer blocks further dispatches to that model for the current audit, while other models can continue. Requests already in flight may still finish and incur cost. Running reports use provisional language; final missing-discovery and incomplete-audit warnings are deferred until the run ends.
+
+## Comparisons, references, and search
+
+Comparison metrics use exact target/competitor mentions and shared successful unprompted answers. Questions naming any compared brand (including aliases) are excluded from the comparison denominator. Recognition questions remain separate. No competitor recommendation judgment is implied by a mention.
+
+Approved facts contain stable IDs, a statement, source URL, and review date. Only the separate evaluator sees them. Rubric v3 compares each reference with explicit claims in an answer; support/conflict requires exact answer and reference quotes, while omissions are not contradictions. Invalid checks invalidate that assessment and retain the raw receipt. This is a model-mediated reference comparison, not independently fetched evidence or exhaustive hallucination detection. Older assessments remain readable.
+
+Brave uses its web-search API and is a separate evidence channel: query, locale, ordered results, timestamp and raw payload. Results never enter generation or scoring prompts. The owner confirms their subscription rate; previews include every search request in the same run budget, while reports label search costs as estimates and exclude them from known model billing. Requests are paced, and failures halt further dispatch without retries. Domain ranks use parsed hostname boundaries, not substring matches.
+
+The browser loads the public model catalog when Live mode is selected. It displays loading, error/retry, and populated states instead of an empty multi-select; refresh preserves selected models and invalidates any existing approval preview.

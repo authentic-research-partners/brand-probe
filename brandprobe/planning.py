@@ -2,15 +2,21 @@
 
 from decimal import Decimal
 import httpx
-from brandprobe.analyze import RUBRIC
+from brandprobe.analyze import RUBRIC, FACT_RUBRIC
 from brandprobe.exceptions import BrandProbeError
 from brandprobe.fixtures import DEMO_MODELS
 from brandprobe.llm import catalog
-from brandprobe.schemas import AuditConfig, Plan
+from brandprobe.schemas import AuditConfig, Plan, WorkItem
 from brandprobe.templates import messages
 
 
-async def make_plan(config: AuditConfig, demo: bool, client: httpx.AsyncClient) -> Plan:
+async def make_plan(
+    config: AuditConfig,
+    demo: bool,
+    client: httpx.AsyncClient,
+    work_items: list[WorkItem] | None = None,
+    parent_audit_id: str | None = None,
+) -> Plan:
     prices = DEMO_MODELS if demo else await catalog(client)
     if not demo and not config.models:
         raise BrandProbeError(
@@ -21,10 +27,34 @@ async def make_plan(config: AuditConfig, demo: bool, client: httpx.AsyncClient) 
         raise BrandProbeError(
             "A selected model is unavailable or unsuitable for no-search tests. Refresh the model catalog."
         )
+    allowed = {
+        (p.id, q.id, r)
+        for p in selected
+        for q in config.prompts
+        for r in range(1, config.repetitions + 1)
+    }
+    if work_items is not None:
+        requested = {(w.model, w.prompt_id, w.repetition) for w in work_items}
+        if (
+            not requested
+            or not requested <= allowed
+            or len(requested) != len(work_items)
+        ):
+            raise BrandProbeError(
+                "Recovery work no longer matches available models and questions."
+            )
+    else:
+        requested = allowed
     reservations = {}
     estimate = Decimal(0)
     for price in selected:
         for p in config.prompts:
+            repeats = sum(
+                (price.id, p.id, r) in requested
+                for r in range(1, config.repetitions + 1)
+            )
+            if not repeats:
+                continue
             # UTF-8 bytes plus generous chat framing, not a tokenizer claim.
             size = (
                 sum(len(m["content"].encode("utf-8")) for m in messages(config, p))
@@ -43,8 +73,8 @@ async def make_plan(config: AuditConfig, demo: bool, client: httpx.AsyncClient) 
                 / 2
                 * (price.output_per_token + price.reasoning_per_token)
                 + price.per_request
-            ) * config.repetitions
-    requests = len(selected) * len(config.prompts) * config.repetitions
+            ) * repeats
+    requests = len(requested)
     evaluator = None
     evaluation_reservation = Decimal(0)
     if not demo and config.evaluator_model:
@@ -57,6 +87,8 @@ async def make_plan(config: AuditConfig, demo: bool, client: httpx.AsyncClient) 
         # At most 8 serialized bytes per generated token, plus explicit framing.
         size = (
             len(RUBRIC.encode())
+            + len(FACT_RUBRIC.encode())
+            + sum(len(f.model_dump_json().encode()) for f in config.facts)
             + len(config.brand.model_dump_json().encode())
             + max(len(p.text.encode()) for p in config.prompts)
             + config.max_tokens * 8
@@ -78,9 +110,19 @@ async def make_plan(config: AuditConfig, demo: bool, client: httpx.AsyncClient) 
                 raise BrandProbeError(
                     f"{model.id} does not advertise {config.reasoning_effort} reasoning. Choose provider defaults or another effort."
                 )
+    search_requests = len(config.search.queries) if not demo else 0
+    if search_requests and not config.search.rate_confirmed:
+        raise BrandProbeError(
+            "Confirm your Brave subscription price before previewing search requests."
+        )
+    search_reserved = config.search.price_per_request_usd * search_requests
     total = (
-        sum(reservations.values(), Decimal(0)) * config.repetitions
+        sum(
+            (reservations[f"{model}|{prompt}"] for model, prompt, _ in requested),
+            Decimal(0),
+        )
         + evaluation_reservation * requests
+        + search_reserved
     )
     if not demo and (config.budget_usd <= 0 or total > config.budget_usd):
         raise BrandProbeError(
@@ -90,8 +132,12 @@ async def make_plan(config: AuditConfig, demo: bool, client: httpx.AsyncClient) 
         mode="demo" if demo else "live",
         config=config,
         prices=selected,
-        requests=len(selected) * len(config.prompts) * config.repetitions,
-        estimated_usd=estimate,
+        requests=requests,
+        search_requests=search_requests,
+        search_reserved_usd=search_reserved,
+        work_items=work_items,
+        parent_audit_id=parent_audit_id,
+        estimated_usd=estimate + search_reserved,
         reserved_usd=total,
         reservations=reservations,
         evaluator_price=evaluator,

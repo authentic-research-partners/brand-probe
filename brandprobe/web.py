@@ -19,6 +19,7 @@ from brandprobe.llm import catalog
 from brandprobe.planning import make_plan
 from brandprobe.report import csv_report, html_report, report_data
 from brandprobe.schemas import Audit, AuditConfig, Plan
+from brandprobe.worker import lease, recover, remaining
 
 
 class Preview(BaseModel):
@@ -38,6 +39,11 @@ def create_app(root: Path) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        try:
+            with lease(root):
+                recover(root)
+        except BrandProbeError:
+            pass  # An active worker owns the evidence; never recover its run.
         yield
         for task in tasks:
             task.cancel()
@@ -94,6 +100,7 @@ def create_app(root: Path) -> FastAPI:
             "config": load_config(root / "examples/sots.toml").model_dump(mode="json"),
             "token": token,
             "key_configured": bool(api_key(root)),
+            "search_key_configured": bool(api_key(root, "BRAVE_SEARCH_API_KEY")),
         }
 
     @app.get("/api/pilot")
@@ -117,7 +124,12 @@ def create_app(root: Path) -> FastAPI:
     async def perform(audit: Audit, approved: bool):
         try:
             await execute(
-                root, audit.plan, api_key(root), approved=approved, audit=audit
+                root,
+                audit.plan,
+                api_key(root),
+                approved=approved,
+                audit=audit,
+                search_key=api_key(root, "BRAVE_SEARCH_API_KEY"),
             )
         except Exception:
             audit.status = "interrupted"
@@ -140,12 +152,20 @@ def create_app(root: Path) -> FastAPI:
             raise BrandProbeError(
                 "Approve the live price preview and configure OPENROUTER_API_KEY first."
             )
+        if plan.search_requests and not api_key(root, "BRAVE_SEARCH_API_KEY"):
+            raise BrandProbeError(
+                "Configure BRAVE_SEARCH_API_KEY before starting the search baseline."
+            )
         from datetime import datetime, timezone
 
         if (
             datetime.now(timezone.utc) - datetime.fromisoformat(plan.created_at)
         ).total_seconds() > 900:
             raise BrandProbeError("Price preview expired. Create a fresh preview.")
+        if plan.parent_audit_id and store.has_continuation(root, plan.parent_audit_id):
+            raise BrandProbeError(
+                "This audit already has a continuation. Inspect its history entry."
+            )
         plans.pop(body.plan_id)
         audit = Audit(plan=plan)
         store.save(root, audit)
@@ -153,6 +173,34 @@ def create_app(root: Path) -> FastAPI:
         tasks.add(task)
         task.add_done_callback(tasks.discard)
         return {"id": audit.id}
+
+    @app.post("/api/runs/{audit_id}/continuation")
+    async def continuation(audit_id: str):
+        original = store.get(root, audit_id)
+        if not original:
+            raise HTTPException(404, "Audit not found.")
+        if store.has_continuation(root, original.id):
+            raise BrandProbeError(
+                "This audit already has a continuation. Inspect its history entry."
+            )
+        work = remaining(original)
+        if not work:
+            raise BrandProbeError(
+                "No never-dispatched answers remain. Uncertain requests require manual review."
+            )
+        config = original.plan.config.model_copy(deep=True)
+        config.search.queries = []  # Never repeat search calls during generation recovery.
+        config.models = list(dict.fromkeys(w.model for w in work))
+        async with httpx.AsyncClient(timeout=30) as client:
+            plan = await make_plan(
+                config,
+                original.plan.mode == "demo",
+                client,
+                work_items=work,
+                parent_audit_id=original.id,
+            )
+        plans[plan.id] = plan
+        return plan.model_dump(mode="json")
 
     @app.get("/api/runs")
     async def history():
@@ -163,6 +211,11 @@ def create_app(root: Path) -> FastAPI:
                 "mode": a.plan.mode,
                 "status": a.status,
                 "started_at": a.started_at,
+                "parent_audit_id": a.plan.parent_audit_id,
+                "can_continue": a.status == "interrupted"
+                and a.dispatch_journal
+                and any(o.status == "skipped" for o in a.observations)
+                and not store.has_continuation(root, a.id),
             }
             for a in store.history(root)
         ]

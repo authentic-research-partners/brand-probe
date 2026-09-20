@@ -12,6 +12,8 @@ LAYERS = {
     "fixtures": 2,
     "llm": 2,
     "measure": 2,
+    "search": 2,
+    "worker": 3,
     "db.store": 2,
     "planning": 3,
     "analyze": 3,

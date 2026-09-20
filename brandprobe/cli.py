@@ -8,6 +8,7 @@ from brandprobe.engine import execute
 from brandprobe.llm import catalog
 from brandprobe.planning import make_plan
 from brandprobe.report import html_report, report_data
+from brandprobe.worker import lease, recover
 
 
 def parser() -> argparse.ArgumentParser:
@@ -39,6 +40,9 @@ def parser() -> argparse.ArgumentParser:
             help="Exact OpenRouter model ID; repeat to select several models.",
         )
     sub.add_parser(
+        "recover", help="Mark abandoned runs interrupted; never sends paid requests."
+    )
+    sub.add_parser(
         "models",
         help="List current eligible OpenRouter model IDs and prices.",
         description="Fetch the public model catalog; no paid inference.",
@@ -56,6 +60,12 @@ def parser() -> argparse.ArgumentParser:
 
 async def run_command(args: argparse.Namespace) -> None:
     root = args.root.resolve()
+    if args.command == "recover":
+        with lease(root):
+            print(
+                f"Recovered {recover(root)} interrupted runs. Review history for remaining work."
+            )
+        return
     async with httpx.AsyncClient(timeout=30) as client:
         if args.command == "models":
             for model in await catalog(client):
@@ -70,7 +80,7 @@ async def run_command(args: argparse.Namespace) -> None:
             )
         plan = await make_plan(config, args.command == "demo", client)
     print(
-        f"{plan.mode}: {plan.requests} responses + {plan.evaluation_requests} scoring requests; estimated ${plan.estimated_usd:.4f}; conservative reservation ${plan.reserved_usd:.4f}; budget ${config.budget_usd}"
+        f"{plan.mode}: {plan.requests} responses + {plan.evaluation_requests} scoring requests + {plan.search_requests} search requests; estimated ${plan.estimated_usd:.4f}; conservative reservation ${plan.reserved_usd:.4f}; budget ${config.budget_usd}"
     )
     if args.command == "plan":
         print(plan.model_dump_json(indent=2))
@@ -79,7 +89,13 @@ async def run_command(args: argparse.Namespace) -> None:
         if input("Type RUN to approve this paid audit: ").strip() != "RUN":
             print("Cancelled; no model requests sent.")
             return
-    audit = await execute(root, plan, api_key(root), approved=args.command == "run")
+    audit = await execute(
+        root,
+        plan,
+        api_key(root),
+        approved=args.command == "run",
+        search_key=api_key(root, "BRAVE_SEARCH_API_KEY"),
+    )
     folder = root / ".brandprobe" / "reports"
     folder.mkdir(parents=True, exist_ok=True)
     (folder / f"{audit.id}.html").write_text(html_report(audit))

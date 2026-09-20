@@ -23,6 +23,9 @@ def get_db(root: Path) -> Iterator[sqlite3.Connection]:
         conn.execute(
             "CREATE TABLE IF NOT EXISTS audits (id TEXT PRIMARY KEY, body TEXT NOT NULL)"
         )
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS one_continuation ON audits(json_extract(body, '$.plan.parent_audit_id')) WHERE json_extract(body, '$.plan.parent_audit_id') IS NOT NULL"
+        )
         conn.execute("PRAGMA user_version=1")
         conn.commit()
         yield conn

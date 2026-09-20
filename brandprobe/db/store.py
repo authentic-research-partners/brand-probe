@@ -26,3 +26,24 @@ def history(root: Path) -> list[Audit]:
                 "SELECT body FROM audits ORDER BY rowid DESC LIMIT 50"
             )
         ]
+
+
+def running(root: Path) -> list[Audit]:
+    with get_db(root) as conn:
+        return [
+            Audit.model_validate_json(row[0])
+            for row in conn.execute(
+                "SELECT body FROM audits WHERE json_extract(body, '$.status')='running'"
+            )
+        ]
+
+
+def has_continuation(root: Path, audit_id: str) -> bool:
+    with get_db(root) as conn:
+        return (
+            conn.execute(
+                "SELECT 1 FROM audits WHERE json_extract(body, '$.plan.parent_audit_id')=?",
+                (audit_id,),
+            ).fetchone()
+            is not None
+        )

@@ -1,10 +1,10 @@
 """Mechanical mentions only: a mention is not a recommendation."""
 
 import re
-from brandprobe.schemas import Brand, Observation
+from brandprobe.schemas import Brand, Competitor, Observation, Audit
 
 
-def find_mentions(text: str, brand: Brand) -> list[str]:
+def find_mentions(text: str, brand: Brand | Competitor) -> list[str]:
     # Short ambiguous aliases are deliberately excluded from automatic matching.
     names = [brand.name, brand.domain, *(a for a in brand.aliases if len(a) >= 5)]
     pattern = re.compile(
@@ -82,4 +82,82 @@ def semantic_summary(observations: list[Observation]) -> list[dict]:
                 ),
             }
         )
+    return rows
+
+
+def comparable(observation: Observation, brands: list[Brand | Competitor]) -> bool:
+    return (
+        observation.status == "ok"
+        and observation.prompt.kind != "recognition"
+        and not any(
+            name.casefold() in observation.prompt.text.casefold()
+            for brand in brands
+            for name in [brand.name, brand.domain, *brand.aliases]
+            if name
+        )
+    )
+
+
+def competitor_summary(audit: Audit) -> list[dict]:
+    """Compare exact mentions only on questions that name none of the compared brands."""
+    brands: list[Brand | Competitor] = [
+        audit.plan.config.brand,
+        *audit.plan.config.competitors,
+    ]
+    rows = []
+    for model in dict.fromkeys(o.model for o in audit.observations):
+        group = [
+            o
+            for o in audit.observations
+            if o.model == model and o.prompt.kind != "recognition"
+        ]
+        eligible = [o for o in group if comparable(o, brands)]
+        for brand in brands:
+            matched = [o for o in eligible if find_mentions(o.text, brand)]
+            rows.append(
+                dict(
+                    model=model,
+                    brand=brand.name,
+                    mentions=len(matched),
+                    successful=len(eligible),
+                    excluded=len(group) - len(eligible),
+                    observation_ids=[o.id for o in matched],
+                )
+            )
+    return rows
+
+
+def search_summary(audit: Audit) -> list[dict]:
+    from urllib.parse import urlsplit
+
+    def host(value):
+        return (
+            (urlsplit(value if "://" in value else "https://" + value).hostname or "")
+            .lower()
+            .removeprefix("www.")
+        )
+
+    rows = []
+    brands: list[Brand | Competitor] = [
+        audit.plan.config.brand,
+        *audit.plan.config.competitors,
+    ]
+    for result in audit.search_observations:
+        for brand in brands:
+            domain = host(brand.domain)
+            hits = [
+                r.rank
+                for r in result.results
+                if domain
+                and (host(r.url) == domain or host(r.url).endswith("." + domain))
+            ]
+            rows.append(
+                dict(
+                    query=result.query,
+                    brand=brand.name,
+                    status=result.status,
+                    first_domain_rank=min(hits) if hits else None,
+                    returned_results=len(result.results),
+                )
+            )
     return rows

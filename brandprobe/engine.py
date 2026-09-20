@@ -6,11 +6,20 @@ from decimal import Decimal
 from pathlib import Path
 import httpx
 from brandprobe import fixtures, llm
+from brandprobe.search import search
+from brandprobe.worker import lease, recover, work_items, mark_interrupted
 from brandprobe.analyze import evaluate
 from brandprobe.db import store
 from brandprobe.exceptions import BrandProbeError
 from brandprobe.measure import find_mentions
-from brandprobe.schemas import Audit, Evaluation, Observation, Plan, now
+from brandprobe.schemas import (
+    Audit,
+    Evaluation,
+    Observation,
+    Plan,
+    SearchObservation,
+    now,
+)
 
 
 async def execute(
@@ -19,6 +28,7 @@ async def execute(
     key: str = "",
     approved: bool = False,
     audit: Audit | None = None,
+    search_key: str = "",
 ) -> Audit:
     if plan.mode == "live":
         if not approved or not key:
@@ -32,7 +42,20 @@ async def execute(
             raise BrandProbeError(
                 "This price preview expired. Create a new plan before approving."
             )
+    if plan.search_requests and not search_key:
+        raise BrandProbeError(
+            "Configure BRAVE_SEARCH_API_KEY before approving this search baseline."
+        )
+    with lease(root):
+        recover(root, exclude_id=audit.id if audit else None)
+        return await _execute(root, plan, key, audit, search_key)
+
+
+async def _execute(
+    root: Path, plan: Plan, key: str, audit: Audit | None, search_key: str
+) -> Audit:
     audit = audit or Audit(plan=plan)
+    audit.dispatch_journal = True
     store.save(root, audit)
     semaphore = asyncio.Semaphore(plan.config.concurrency)
     lock = asyncio.Lock()
@@ -67,6 +90,15 @@ async def execute(
                         ),
                     )
                 else:
+                    pending = Observation(
+                        model=price.id,
+                        prompt=prompt,
+                        repetition=repetition,
+                        status="interrupted",
+                        error="Request dispatched; receipt not yet recorded. Billing may be unknown.",
+                    )
+                    audit.observations.append(pending)
+                    store.save(root, audit)
                     observation = (
                         await fixtures.respond(
                             plan.config, price.id, prompt, repetition
@@ -91,18 +123,23 @@ async def execute(
                         observation.text, plan.config.brand
                     )
                     observation.mention = bool(observation.evidence)
-                audit.observations.append(observation)
+                if not blocked:
+                    observation.id = pending.id
+                    audit.observations[audit.observations.index(pending)] = observation
+                else:
+                    audit.observations.append(observation)
                 store.save(root, audit)
 
         try:
-            await asyncio.gather(
-                *(
-                    one(price, p, repeat)
-                    for price in plan.prices
-                    for p in plan.config.prompts
-                    for repeat in range(1, plan.config.repetitions + 1)
-                )
-            )
+            prices = {p.id: p for p in plan.prices}
+            prompts = {p.id: p for p in plan.config.prompts}
+            async with asyncio.TaskGroup() as group:
+                for item in work_items(audit):
+                    group.create_task(
+                        one(
+                            prices[item.model], prompts[item.prompt_id], item.repetition
+                        )
+                    )
             # Acquisition completes first. Scoring never changes the observed answer or mention count.
             for observation in audit.observations:
                 if plan.mode == "demo":
@@ -119,6 +156,12 @@ async def execute(
                         )
                     else:
                         allocated += reserve
+                        observation.evaluation = Evaluation(
+                            status="error",
+                            model=plan.evaluator_price.id,
+                            error="Scoring dispatched; receipt not yet recorded. Billing may be unknown.",
+                        )
+                        store.save(root, audit)
                         observation.evaluation = await evaluate(
                             client, key, plan.config, plan.evaluator_price, observation
                         )
@@ -128,6 +171,43 @@ async def execute(
                     store.save(root, audit)
                     if not halt:
                         await asyncio.sleep(plan.config.evaluation_interval_seconds)
+            # Search is a separate acquisition channel; its results never enter model prompts.
+            for query in plan.config.search.queries:
+                if plan.mode == "demo":
+                    audit.search_observations.append(
+                        SearchObservation(
+                            query=query,
+                            status="demo",
+                            error="Search disabled in synthetic mode.",
+                        )
+                    )
+                    continue
+                reserve = plan.config.search.price_per_request_usd
+                if halt or allocated + reserve > plan.config.budget_usd:
+                    audit.search_observations.append(
+                        SearchObservation(
+                            query=query,
+                            status="skipped",
+                            error="Stopped before dispatch because budget or billing is uncertain.",
+                        )
+                    )
+                else:
+                    allocated += reserve
+                    pending_search = SearchObservation(
+                        query=query,
+                        status="interrupted",
+                        error="Search dispatched; billing may be unknown.",
+                    )
+                    audit.search_observations.append(pending_search)
+                    store.save(root, audit)
+                    result = await search(client, search_key, plan.config.search, query)
+                    audit.search_observations[-1] = result
+                    if result.status != "ok":
+                        halt = True
+                    store.save(root, audit)
+                    if not halt:
+                        await asyncio.sleep(1.1)
+                store.save(root, audit)
             audit.status = (
                 "complete"
                 if all(
@@ -141,10 +221,11 @@ async def execute(
                     )
                     for o in audit.observations
                 )
+                and all(r.status in ("ok", "demo") for r in audit.search_observations)
                 else "partial"
             )
         except BaseException:
-            audit.status = "interrupted"
+            mark_interrupted(audit)
             store.save(root, audit)
             raise
     audit.completed_at = now()
