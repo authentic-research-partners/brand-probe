@@ -1,8 +1,8 @@
 # Architecture
 
-BrandProbe follows the approach inspected in Vibe Sentinel and its development checkout: one Python package, typed boundary models, declarative TOML, async HTTP at the edge, SQLite evidence, and thin entry points. It does not depend on Vibe Sentinel or copy its implementation.
+BrandProbe uses one Python package, typed boundary models, declarative TOML, async HTTP at the edge, SQLite evidence, and thin entry points. This keeps configuration and audit behavior shared across the CLI and browser.
 
-The user requested this alignment on 2026-09-19 so that both projects use familiar structure and conventions. It replaces the original TypeScript-backend proposal. The browser layer is static HTML/CSS/JavaScript served by FastAPI; it delegates all audit behavior to the same core as the CLI. React is unnecessary for the present single-screen workflow.
+The browser layer is static HTML/CSS/JavaScript served by FastAPI. A separate frontend framework is unnecessary for the current workflow.
 
 ## Dependency direction
 
@@ -53,4 +53,4 @@ Approved facts contain stable IDs, a statement, source URL, and review date. Onl
 
 Brave uses its web-search API and is a separate evidence channel: query, locale, ordered results, timestamp and raw payload. Results never enter generation or scoring prompts. The owner confirms their subscription rate; previews include every search request in the same run budget, while reports label search costs as estimates and exclude them from known model billing. Requests are paced, and failures halt further dispatch without retries. Domain ranks use parsed hostname boundaries, not substring matches.
 
-The browser loads the public model catalog when Live mode is selected. It displays loading, error/retry, and populated states instead of an empty multi-select; refresh preserves selected models and invalidates any existing approval preview.
+The browser loads the public model catalog when Live mode is selected. It displays loading, error/retry, and populated states with searchable results and a separate selected-model list; refresh preserves selected models and invalidates any existing approval preview.

@@ -1,38 +1,35 @@
-# MVP checklist
+# MVP status
 
-## First working slice
+## Implemented
 
-- [x] Locate Git projects directory and create BrandProbe.
-- [x] Inspect Vibe Sentinel and align the Python architecture.
-- [x] Add a SoTS starter configuration based on its public homepage.
-- [x] Detect the configured OpenRouter key without displaying it.
-- [x] Build brand setup, an editable prompt screen, and a local browser adapter.
-- [x] Implement labeled fixture mode and an OpenRouter transport.
-- [x] Fetch current model prices and show a cost preview before approval.
-- [x] Add bounded concurrency, conservative reservations, and SQLite evidence.
-- [x] Separate recognition/discovery metrics; exclude unsuccessful responses.
-- [x] Add raw evidence inspection and HTML/JSON/CSV exports.
-- [x] Complete the 135-response synthetic audit.
-- [x] Test budget stops, unknown costs, approval, errors, exports, and secret isolation.
+- [x] Editable brand context, questions, and independent repetitions.
+- [x] Synthetic demo with no API calls or charges.
+- [x] OpenRouter catalog, price preview, approval, bounded requests, and raw evidence.
+- [x] Searchable model picker with explicit Add/Remove controls.
+- [x] Separate recognition, discovery, and competitor mention measurements.
+- [x] Optional semantic scoring with validated supporting quotes.
+- [x] Agreement/conflict checks against approved reference facts.
+- [x] Separate Brave Search baseline with subscription-rate estimates.
+- [x] SQLite history and HTML/JSON/CSV exports.
+- [x] Dispatch journaling, local worker lock, crash classification, and approved continuation of never-dispatched answers.
 
-## MVP completion
+## Verification
 
-- [ ] Confirm target market, choose comparison brands, and review prompt coverage.
-- [x] Add competitor-specific exact mentions with unbiased question denominators.
-- [x] Add semantic recognition/recommendation labels with validated supporting quotes.
-- [x] Add fact-sheet agreement/conflict checks with validated answer and reference quotes.
-- [x] Add Brave Search as a separate, explicitly priced baseline (mocked API validation; live key/setup still required).
-- [x] Add a local worker lock, dispatch journal, crash recovery, and newly approved continuation of never-dispatched model work.
-- [x] Automatically load the model catalog in Live mode; show loading/error/retry states and preserve selection on refresh.
-- [x] Run a five-question, three-model live pilot with an approved cost preview.
-- [x] Manually inspect recognition answers and sample discovery answers; document exclusions and scoring limitations.
+The automated suite covers cost limits, credential isolation, provider failures, quote validation, competitor denominators, search transport, exports, recovery, and model-picker interactions. Python lint/type checks and JavaScript syntax are checked separately.
 
-The pilot produced 40 usable answers and five truncated ones. All 40 usable answers were scored after a rubric correction and a paced recheck; one earlier scoring request has unknown billing. The owner reported adding $50 to the account; this is not treated as permission to consume the full balance. The proposed per-run budget remains $5, subject to explicit plan approval.
+Live generation and semantic scoring have been exercised, including a completed five-question, three-model run with three repetitions: all 45 answers and 45 assessments completed. Earlier pilots exposed truncation, rate limits, and ambiguous judge labels; those observations informed the current exclusions and evidence validation.
 
-## Validation and remaining setup
+Reference-fact checking and Brave Search have mocked tests but have not yet been validated through live provider calls. Interface behavior has automated state tests; browser visual verification remains outstanding.
 
-The expanded suite has 43 offline tests, including crash/cancellation recovery, duplicate continuation prevention, cost preview, Brave transport/errors, fact evidence validation, competitor denominators, exports, and model-picker state transitions. Python lint/type checks and JavaScript syntax pass. The new Brave and fact-sheet workflows have not been tested with paid provider requests, and the UI changes have not been visually verified in a browser.
+## Before each real study
 
-Before a real brand study, the owner still needs to confirm the audience/market, choose competitors, supply and approve sourced facts, and configure Brave credentials and subscription pricing if search is desired. Existing SoTS assumptions remain unchanged. Tests do not spend account credit.
+- [ ] Confirm the target audience, market, and relevance of the chosen questions.
+- [ ] Choose comparison brands and review names and aliases.
+- [ ] Supply and approve reference facts if using factual comparisons.
+- [ ] Configure Brave credentials and confirm the subscription rate if using search.
+- [ ] Review the exact scope and costs before approving paid requests.
+- [ ] Inspect raw answers and judge evidence before sharing conclusions.
 
-Recovery is local, not a hosted job queue. Unknown/in-flight calls are retained without retries. A continuation is a linked new run with its own preview/budget, containing only never-dispatched generation work and scoring for those new answers; it does not retry old scoring or search. Legacy audits without a dispatch journal are conservatively classified as uncertain. Trend comparisons and automated external-source verification remain beyond this MVP.
+## Outside this MVP
+
+Trend comparisons, automatic source collection, independent exhaustive fact verification, and distributed job scheduling. Continuation preserves original evidence and never automatically retries uncertain, scoring, or search requests. Legacy runs without a dispatch journal remain conservatively classified as uncertain.

@@ -1,94 +1,119 @@
 # BrandProbe
 
-Explore how AI models recognize and mention a brand, with the exact answers behind every count.
+**Does AI know your brand—and does it bring it up when people ask for recommendations?**
 
-Built with the same architectural approach as Vibe Sentinel: Python 3.13, Pydantic, TOML, async HTTP, SQLite history, and a thin CLI. A local FastAPI browser interface uses the same core. See [architecture](docs/ARCHITECTURE.md).
+BrandProbe is a local tool for exploring those questions across different AI models. Ask about a brand directly, try the questions its audience would ask, and compare the answers with mentions of other organizations. Every result keeps the original response so you can inspect what the model actually said.
 
-## Run locally
+A model saying “I don’t know this brand” still mentions its name. BrandProbe separates a name appearing in an answer from a model describing or recommending the organization.
+
+**Status: early working prototype.** Model generation and scoring have been tested with live API requests. Search and reference-fact checks have automated tests but have not yet been validated with live provider calls. This is a research aid, not a universal AI visibility score.
+
+## What you can explore
+
+| Question | How BrandProbe helps |
+| --- | --- |
+| Does a model recognize my brand? | Ask directly, then inspect its description, uncertainty, and optional scoring evidence. |
+| Does my brand come up naturally? | Ask questions that do not name it and count mentions in successful answers. |
+| Which other brands appear? | Compare exact mentions on a shared set of unprompted questions. |
+| Does an answer agree with my reference facts? | Supply approved statements and sources; a scoring model checks agreement or conflict with quoted evidence. |
+| Does my website appear in Brave Search? | Run a separate search snapshot and inspect domain positions in the returned results. |
+
+The browser includes model search, Add/Remove controls, editable questions, cost previews, run history, and HTML/JSON/CSV exports. You can start with a synthetic demo without API keys or charges.
+
+## Try it locally
+
+Requires **Python 3.13**, [uv](https://docs.astral.sh/uv/getting-started/installation/), and macOS or Linux. Local worker locking uses POSIX APIs; native Windows is not currently supported.
+
+```sh
+git clone https://github.com/authentic-research-partners/brand-probe.git
+cd brand-probe
+uv sync --extra dev
+source .venv/bin/activate
+brandprobe serve
+```
+
+Open **http://127.0.0.1:8765**. The browser starts in Demo mode. Preview the audit and run the synthetic example to explore the interface without contacting model providers. Synthetic results are labeled and are not findings about the example brand.
+
+The included configurations use [Society of Teen Scientists](https://teenscientists.org/) as an example. Edit the brand, audience, questions, and comparison brands for your own study. The five-question pilot offers a smaller starting scope than the full fifteen-question example.
+
+## Run a live audit
+
+1. Copy the credential template:
+
+   ```sh
+   cp .env.example .env.local
+   ```
+
+2. Add your OpenRouter key to `OPENROUTER_API_KEY` in `.env.local`.
+3. Choose **Live** in the browser. The public model catalog loads automatically. Search by model name or provider and click **Add** for each model you want to compare.
+4. Review the questions and choose an optional scoring model. Start with a few questions and repetitions.
+5. Click **Preview audit**, review the request counts and price reservation, then explicitly approve the run.
+
+Use the full brand name for recognition questions. Each answer starts a fresh conversation: an acronym-only question tests whether the model can identify that acronym, not whether it remembers a brand introduced in another question.
+
+The scoring model reads the question and answer separately and classifies recognition or recommendation with supporting quotes. Its requests are included in the price preview. Scores are judgments, not verified facts; inspect the evidence before sharing conclusions.
+
+### Costs and local data
+
+- Catalog loading and Demo mode do not incur model inference charges.
+- Live previews include generation, optional scoring, and configured search requests. The per-run budget is set in the form or TOML configuration.
+- Reservations include a buffer but are not a provider billing guarantee. Unknown model billing stops new dispatches; requests already in flight may still finish and incur charges.
+- Failed calls are not automatically retried. Brave costs are estimates based on the subscription rate you enter, separate from recorded model billing.
+- Credentials stay in environment variables or ignored `.env` files. Local audit evidence is stored in `.brandprobe/history.db`; CLI exports go into `.brandprobe/reports/`.
+- Your questions are sent to the selected model provider through OpenRouter. Scoring also sends the answers and any approved reference facts to the evaluator. Search queries go to Brave. Review your inputs before sending confidential material.
+
+## Optional comparisons, facts, and search
+
+**Comparison brands:** add names, domains, and aliases under “Comparison brands and reference facts.” Counts use successful unprompted answers and exclude questions naming any compared brand. They count mentions, not competitor endorsements.
+
+**Reference checks:** add concise factual statements, source URLs, and review dates; approve them and select a scoring model. Reference facts are sent only to the evaluator, never to the models answering the audit questions. A supported or contradicted label requires quotes from both the answer and reference. These checks do not independently verify the source or check every possible claim. Start with a few facts to avoid exhausting the scoring output limit.
+
+**Brave Search:** add `BRAVE_SEARCH_API_KEY` to `.env.local`, enter search queries, and confirm your subscription price. Results remain separate from model answers. The report records up to twenty first-page results per query; absence from that page does not establish absence from the search index.
+
+## Read results carefully
+
+- Recognition questions and spontaneous discovery use separate denominators.
+- A description can sound knowledgeable while being generic or inaccurate. “Recognized” does not prove factual knowledge.
+- Errors, truncated answers, and missing assessments are excluded rather than counted as negative findings.
+- Repetitions are repeated samples of the same questions, not additional distinct questions.
+- These are API model responses with search disabled. They do not reproduce the ChatGPT, Claude, or Gemini consumer applications, their personalization, or their browsing behavior.
+- Results depend on the questions, model versions, and inference settings. Record those settings when comparing experiments.
+
+## Command-line use
+
+```sh
+brandprobe demo
+brandprobe models
+brandprobe plan --config examples/sots-pilot.toml
+brandprobe run --config examples/sots-pilot.toml
+```
+
+`plan` previews costs without inference. `run` requires typing `RUN` before making paid requests. Repeat `--model PROVIDER/MODEL_ID` to override the configured models. Model availability and prices are checked at preview time.
+
+## Interrupted runs
+
+After an unexpected shutdown, the next server startup classifies abandoned runs while holding an exclusive local worker lock. `brandprobe recover` performs the same check without paid calls.
+
+History offers **Preview remaining work** for eligible runs. A continuation requires a fresh price preview and approval and includes only never-dispatched generation work, plus scoring for those new answers. Completed or uncertain requests, old scoring, and search are not repeated. The original report is preserved. Legacy runs without a dispatch journal cannot safely continue this way.
+
+Keep one local instance per workspace. Restart the server after backend updates and refresh the browser after interface updates. This prototype binds to localhost and is not designed for public hosting or multiple users.
+
+## Development
+
+One Python package with Pydantic contracts, TOML settings, async HTTP, SQLite evidence, and thin CLI/FastAPI adapters. The browser uses plain HTML, CSS, and JavaScript. See [architecture](docs/ARCHITECTURE.md) and [MVP status](docs/MVP.md).
 
 ```sh
 uv sync --extra dev
 source .venv/bin/activate
-brandprobe demo
-brandprobe serve
-```
-
-Open http://127.0.0.1:8765 after starting the server. `demo` generates 135 clearly labeled synthetic responses for Society of Teen Scientists without network requests. The browser starts in demo mode.
-
-The supplied [SoTS configuration](examples/sots.toml) has 15 editable questions: three direct recognition questions and twelve unprompted questions about physics study and young-scientist communities. The initial audience and geography are assumptions from the public homepage, not validated customer research. No competitors have been selected yet.
-
-## Live audit
-
-Put `OPENROUTER_API_KEY` in `.env` or `.env.local`; both are gitignored. A process environment variable takes precedence. Never put secrets in TOML, screenshots, or reports. The existing configuration proposes a $5 per-run budget; account credit is not a spending instruction.
-
-In the browser: select Live mode (the catalog loads automatically), select models, edit questions, preview costs, then approve the exact run. The catalog request does not incur model inference charges. Model prices are refreshed for the preview.
-
-CLI equivalent:
-
-```sh
-brandprobe models
-brandprobe plan --model PROVIDER/MODEL_ID
-brandprobe run --model PROVIDER/MODEL_ID
-```
-
-Repeat `--model` for additional models. `run` prints the estimate and conservative reservation, then requires typing `RUN`. No paid requests are made by setup or tests. The live pipeline has been exercised with paid requests; reports preserve incomplete/truncated responses and do not claim full coverage when requests fail.
-
-## Current functionality
-
-- Editable brand context and questions, 1–5 independent repetitions.
-- Model catalog, cost preview, run approval, bounded async requests.
-- Separate prompted recognition and unprompted discovery counts.
-- Optional semantic scoring: recognized/unrecognized/uncertain and recommended/discouraged/neutral/absent, with exact supporting quotes and separately tracked costs.
-- Five-question SoTS pilot preset; explicit reasoning effort validated against model capabilities.
-- Raw responses, timestamps, model/provider metadata, usage, and errors in `.brandprobe/history.db`.
-- Competitor exact-mention comparisons with shared, unprompted denominators.
-- Optional approved fact-sheet checks with quoted agreement/conflict evidence.
-- Separately priced Brave Search results and domain ranks, kept out of model prompts.
-- Local dispatch journaling, crash recovery and approved continuation of never-dispatched answers.
-- Evidence inspection and HTML/JSON/CSV exports; CLI reports in `.brandprobe/reports/`.
-- Unknown billing stops further dispatch. Errors/truncations are excluded from mention denominators.
-
-A mention is not an endorsement. An absence does not establish that a brand is absent from training data. API measurements do not reproduce consumer chat applications. Demo data is synthetic, never a brand finding. Short ambiguous aliases are excluded from automatic matching.
-
-## Not implemented yet
-
-Trend comparisons, automated source collection, exhaustive fact verification, and hosted/distributed job scheduling. Reference checks compare supplied facts; they do not establish independent ground truth.
-
-## Development
-
-```sh
 pytest -q
 ruff format --check .
 ruff check .
 mypy brandprobe
+node --check brandprobe/static/app.js
 ```
 
-Tests use fixtures and mocked HTTP; no keys or paid requests are needed. `uv.lock` records dependency resolution. Run only one local instance per workspace. Do not expose this prototype directly to the internet.
+Tests use fixtures and mocked HTTP, not paid API calls. **Node.js is also required for the model-picker tests.** The dependency lockfile is included. Trend comparisons, automatic source collection, and distributed job scheduling are outside the current MVP.
 
-BrandProbe is a working name; trademark and domain availability have not been checked.
+## License
 
-## Scoring and the pilot
-
-Use **Load the 5-question SoTS pilot** in the browser. It selects three models, three repetitions, a scoring model, and low reasoning effort, subject to current catalog availability. Review all choices and the combined price preview before approving. CLI: `brandprobe run --config examples/sots-pilot.toml`.
-
-Semantic scoring is a model judgment, not ground truth. It never alters original responses. Unsupported quotes and inconsistent labels are rejected as unassessed. A substantive description can count as recognized even if its claims are wrong; approved reference checks are separate and cover only supplied facts. Directly naming a brand is never counted as spontaneous discovery.
-
-`reasoning_effort` is persisted with the run. Provider defaults are retained when it is unset; the same token cap can yield different amounts of visible text across models. Empty `finish_reason: length` responses are truncated, retain receipts, and are excluded from visibility metrics.
-
-## Competitors and reference checks
-
-Open **Comparison brands and reference facts** in setup. Add competitors by name/domain and optional aliases. Reports compare exact mentions only on successful questions naming none of the compared brands; prompted alternatives are excluded from that comparison. A mention is not a recommendation.
-
-For reference checks, add short statements, source URLs and review dates, tick the approval checkbox, and select a scoring model. The judge compares each fact with the answer and quotes both sources for agreement/conflict. Omitted facts are marked not addressed. References never prime model acquisition. These are reference-bound model judgments, not exhaustive verification of every claim. Large fact sheets can exhaust the scoring token limit; start with a few concise facts and inspect exclusions.
-
-## Brave Search baseline
-
-Add `BRAVE_SEARCH_API_KEY` to `.env.local`, enter explicit search queries under Live settings, and verify the subscription rate before previewing. The editable starting rate is not a promise about your account price. The preview includes the search portion; reports show it as estimated cost, separately from model billing receipts. Demo mode sends no search requests.
-
-The [Brave web-search API](https://api-dashboard.search.brave.com/api-reference/web/search/post) supplies an independent search snapshot. We record only the requested first page (up to 20 results) and exact domain positions. No returned result is injected into model answers. Absence from this page is not absence from the index, and Brave rank does not establish visibility in ChatGPT or Claude.
-
-## Interrupted runs
-
-On the next server startup, abandoned runs are classified under an exclusive local worker lock. You can also run `brandprobe recover` without making API calls. In history, **Preview remaining work** creates a linked continuation for never-dispatched generation requests. Review its fresh prices and approve it separately; completed or uncertain calls are not repeated, and the original report is preserved. Search and old scoring requests are not retried by continuation. Legacy runs without a dispatch journal cannot safely continue automatically.
-
-Keep one local instance per workspace. Restart the server after backend updates; refresh the browser for static UI updates. The worker lock uses POSIX file locking (macOS/Linux).
+[MIT](LICENSE). Copyright © 2026 BrandProbe contributors.

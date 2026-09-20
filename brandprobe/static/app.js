@@ -1,6 +1,8 @@
 'use strict';
 const $ = id => document.getElementById(id);
 let config, token, plan, pollTimer, catalogPromise, catalogLoaded = false;
+let modelOptions = [], evaluatorOptions = [];
+let selectedModelIds = new Set();
 const text = (tag, value, className) => { const e=document.createElement(tag);e.textContent=value;if(className)e.className=className;return e; };
 const notify = value => { $('message').textContent=value; };
 const isLive = () => document.querySelector('[name=mode]:checked').value==='live';
@@ -27,30 +29,68 @@ function addReference(kind, value={}) {
  const remove=text('button','Remove','quiet');remove.type='button';remove.onclick=()=>{row.remove();invalidate();};row.append(fields,remove);$(kind).append(row);invalidate();
 }
 function references(kind){return [...$(kind).children].map(row=>{const value={};for(const input of row.querySelectorAll('[data-key]'))value[input.dataset.key]=input.dataset.key==='aliases'?input.value.split(',').map(v=>v.trim()).filter(Boolean):input.value;if(kind==='facts')value.id=row.dataset.id;return value;});}
-function collect(){return {...config,brand:{...config.brand,name:$('brand').value,domain:$('domain').value,audience:$('audience').value,market:$('market').value,language:$('language').value},competitors:references('competitors'),facts:references('facts'),facts_approved:$('facts-approved').checked,search:{queries:isLive()?$('search-queries').value.split('\n').map(v=>v.trim()).filter(Boolean):[],country:$('search-country').value.toUpperCase(),language:$('search-language').value,count:Number($('search-count').value),price_per_request_usd:String(Number($('search-price').value)/1000),rate_confirmed:$('search-rate-confirmed').checked},models:[...$('models').selectedOptions].map(o=>o.value),evaluator_model:$('evaluator').value||null,reasoning_effort:$('reasoning').value||null,max_tokens:Number($('max-tokens').value),repetitions:Number($('repetitions').value),budget_usd:$('budget').value,prompts:[...$('prompts').children].map(row=>({id:row.dataset.id,kind:row.querySelector('select').value,text:row.querySelector('textarea').value}))};}
+function collect(){return {...config,brand:{...config.brand,name:$('brand').value,domain:$('domain').value,audience:$('audience').value,market:$('market').value,language:$('language').value},competitors:references('competitors'),facts:references('facts'),facts_approved:$('facts-approved').checked,search:{queries:isLive()?$('search-queries').value.split('\n').map(v=>v.trim()).filter(Boolean):[],country:$('search-country').value.toUpperCase(),language:$('search-language').value,count:Number($('search-count').value),price_per_request_usd:String(Number($('search-price').value)/1000),rate_confirmed:$('search-rate-confirmed').checked},models:[...selectedModelIds],evaluator_model:$('evaluator').value||null,reasoning_effort:$('reasoning').value||null,max_tokens:Number($('max-tokens').value),repetitions:Number($('repetitions').value),budget_usd:$('budget').value,prompts:[...$('prompts').children].map(row=>({id:row.dataset.id,kind:row.querySelector('select').value,text:row.querySelector('textarea').value}))};}
 function applyConfig(value){
- config=value;for(const id of ['brand','domain','audience','market','language'])$(id).value=id==='brand'?config.brand.name:config.brand[id];
+ config=value;selectedModelIds=new Set(config.models);for(const id of ['brand','domain','audience','market','language'])$(id).value=id==='brand'?config.brand.name:config.brand[id];
  $('prompts').replaceChildren();config.prompts.forEach(addPrompt);
  for(const kind of ['competitors','facts']){$(kind).replaceChildren();(config[kind]||[]).forEach(v=>addReference(kind,v));}
  $('facts-approved').checked=config.facts_approved||false;
  $('budget').value=config.budget_usd;$('repetitions').value=config.repetitions;$('max-tokens').value=config.max_tokens;$('reasoning').value=config.reasoning_effort||'';
  const search=config.search||{};$('search-queries').value=(search.queries||[]).join('\n');$('search-country').value=search.country||'US';$('search-language').value=search.language||'en';$('search-count').value=search.count||10;$('search-price').value=Number(search.price_per_request_usd??0.005)*1000;$('search-rate-confirmed').checked=search.rate_confirmed||false;
- if(catalogLoaded){for(const o of $('models').options)o.selected=config.models.includes(o.value);$('evaluator').value=config.evaluator_model||'';}
+ if(catalogLoaded){$('model-search').value='';$('evaluator-search').value='';filterModels('models');filterModels('evaluator');selectedModelIds=new Set(config.models);renderModelPicker();$('evaluator').value=config.evaluator_model||'';}
  invalidate();
 }
 async function loadModels(force=false){
  if(catalogPromise)return catalogPromise;
  if(catalogLoaded&&!force)return;
- invalidate();const selected=catalogLoaded?[...$('models').selectedOptions].map(o=>o.value):config.models;
+ invalidate();if(!catalogLoaded)selectedModelIds=new Set(config.models);
  const evaluator=catalogLoaded?$('evaluator').value:config.evaluator_model;
  $('load-models').disabled=true;$('load-models').textContent='Loading…';$('catalog-status').textContent='Fetching available models and current prices…';$('model-picker').setAttribute('aria-busy','true');
  catalogPromise=(async()=>{try{
   const models=await api('/api/models');if(!models.length)throw new Error('No eligible models returned.');
-  $('models').replaceChildren();$('evaluator').replaceChildren(text('option','Mention counts only (no semantic scoring)'));$('evaluator').firstChild.value='';
-  for(const m of models){const o=text('option',`${m.name} — $${(Number(m.input_per_token)*1e6).toFixed(2)} / $${(Number(m.output_per_token)*1e6).toFixed(2)} per million input/output tokens`);o.value=m.id;o.selected=selected.includes(m.id);$('models').append(o);const judge=text('option',m.name);judge.value=m.id;$('evaluator').append(judge);}
-  $('evaluator').value=evaluator||'';catalogLoaded=true;$('model-picker').hidden=false;$('catalog-status').textContent=`${models.length} models available. Select up to six to compare. Loading this list is free.`;$('load-models').textContent='Refresh models';
+  $('evaluator').replaceChildren(text('option','Mention counts only (no semantic scoring)'));$('evaluator').firstChild.value='';
+  modelOptions=models;
+  for(const m of models){const judge=text('option',m.name);judge.value=m.id;$('evaluator').append(judge);}
+  $('evaluator').value=evaluator||'';evaluatorOptions=[...$('evaluator').options];filterModels('models');filterModels('evaluator');catalogLoaded=true;$('model-picker').hidden=false;$('catalog-status').textContent=`${models.length} models available. Select up to six to compare. Loading this list is free.`;$('load-models').textContent='Refresh models';
  }catch(e){$('catalog-status').textContent=`Could not load models. ${e.message} ${catalogLoaded?'Your previous selection is retained.':''}`;$('load-models').textContent='Retry loading models';}
  finally{$('load-models').disabled=false;$('model-picker').setAttribute('aria-busy','false');catalogPromise=null;}})();return catalogPromise;
+}
+function filterModels(id){
+ if(id==='models'){renderModelPicker();return;}
+ const multiple=id==='models', select=$(id), pool=multiple?modelOptions:evaluatorOptions;
+ const query=$(multiple?'model-search':'evaluator-search').value.trim().toLowerCase();
+ const selected=new Set(multiple?[...select.selectedOptions].map(o=>o.value):[select.value]);
+ const matches=pool.filter(o=>o.value && `${o.textContent} ${o.value}`.toLowerCase().includes(query));
+ const retained=pool.filter(o=>o.value && selected.has(o.value) && !matches.includes(o));
+ // Selected options stay visible even when the query changes.
+ select.replaceChildren(...pool.filter(o=>!o.value||matches.includes(o)||selected.has(o.value)));
+ for(const o of select.options)o.selected=selected.has(o.value);
+ if(!multiple)select.value=[...selected][0]||'';
+ $(multiple?'model-search-status':'evaluator-search-status').textContent=`${matches.length} matching models${retained.length?`; ${retained.length} selected model${retained.length===1?'':'s'} also shown`:''}.${matches.length?'':' Try another name or provider.'}`;
+}
+function changeModel(id, add){
+ if(add){if(selectedModelIds.size>=6||selectedModelIds.has(id))return;selectedModelIds.add(id);}
+ else selectedModelIds.delete(id);
+ invalidate();renderModelPicker();
+}
+function renderModelPicker(){
+ const query=$('model-search').value.trim().toLowerCase();
+ const matches=modelOptions.filter(m=>`${m.name} ${m.id}`.toLowerCase().includes(query));
+ const chosen=$('selected-models'), results=$('models');chosen.replaceChildren();results.replaceChildren();
+ $('selected-model-count').textContent=`${selectedModelIds.size} / 6 selected`;
+ if(!selectedModelIds.size)chosen.append(text('p','No models selected. Add models from the list below.','help'));
+ for(const id of selectedModelIds){
+  const m=modelOptions.find(m=>m.id===id),row=text('div','','model-row selected-model'),info=text('div','','model-info');
+  info.append(text('strong',m?.name||id),text('p',m?id:'Unavailable in the current catalog. Remove it or refresh models.','help'));
+  const remove=text('button','Remove','secondary');remove.type='button';remove.setAttribute('aria-label',`Remove ${m?.name||id}`);remove.onclick=()=>changeModel(id,false);row.append(info,remove);chosen.append(row);
+ }
+ for(const m of matches){
+  const row=text('div','','model-row'),info=text('div','','model-info');
+  info.append(text('strong',m.name),text('p',`${m.id} · $${(Number(m.input_per_token)*1e6).toFixed(2)} input / $${(Number(m.output_per_token)*1e6).toFixed(2)} output per million tokens`,'help'));
+  const selected=selectedModelIds.has(m.id),button=text('button',selected?'Added':'＋ Add','secondary');button.type='button';button.disabled=selected||selectedModelIds.size>=6;button.setAttribute('aria-label',selected?`${m.name} added`:`Add ${m.name}`);button.onclick=()=>changeModel(m.id,true);row.append(info,button);results.append(row);
+ }
+ $('model-search-status').textContent=`${matches.length} matching models.${selectedModelIds.size>=6?' Six-model limit reached. Remove a model to add another.':''}`;
+ if(!matches.length)results.append(text('p','No matching models. Try another name or provider.','help'));
 }
 function modeChanged(){const live=isLive();$('live-settings').hidden=!live;$('mode-notice').textContent=live?'Live mode: real API requests run only after you approve the cost preview.':'Demo mode: synthetic examples only. No real models are being tested.';if(live)loadModels();invalidate();}
 $('audit-form').addEventListener('input',invalidate);
@@ -58,6 +98,8 @@ $('audit-form').addEventListener('change',event=>{invalidate();if(event.target.n
 $('add-prompt').onclick=()=>{addPrompt({id:crypto.randomUUID(),kind:'discovery',text:''});invalidate();};
 $('add-competitor').onclick=()=>addReference('competitors');$('add-fact').onclick=()=>addReference('facts');
 $('load-models').onclick=()=>loadModels(true);
+$('model-search').oninput=()=>filterModels('models');
+$('evaluator-search').oninput=()=>filterModels('evaluator');
 function showPlan(value){plan=value;$('preview-copy').textContent=`${plan.parent_audit_id?'Continuation: only never-dispatched answers. Original evidence and uncertain requests are preserved. ':''}${plan.requests} model responses, ${plan.evaluation_requests||0} scoring requests, and ${plan.search_requests||0} separate Brave searches. ${plan.mode==='demo'?'Synthetic demo only.':'Model answers use no search or brand fact sheet.'} Output limit: ${plan.config.max_tokens} tokens; reasoning: ${plan.config.reasoning_effort||'provider defaults'}.`;$('preview-cost').textContent=`Estimated $${Number(plan.estimated_usd).toFixed(4)} · Reserved $${Number(plan.reserved_usd).toFixed(4)} · Budget $${Number(plan.config.budget_usd).toFixed(2)}. Search portion: $${Number(plan.search_reserved_usd||0).toFixed(4)} at your entered subscription rate.`;$('run').textContent=plan.mode==='demo'?'Run synthetic demo':'Approve cost and run live audit';$('preview-panel').hidden=false;$('preview-panel').scrollIntoView({block:'nearest',behavior:'auto'});}
 $('audit-form').onsubmit=async event=>{event.preventDefault();$('preview').disabled=true;notify('');try{showPlan(await api('/api/plans',{config:collect(),demo:!isLive()}));}catch(e){notify(e.message);}finally{$('preview').disabled=false;}};
 $('run').onclick=async()=>{if(!plan)return;$('run').disabled=true;try{const run=await api('/api/runs',{plan_id:plan.id,approved:plan.mode==='live'});invalidate();await watch(run.id);}catch(e){notify(e.message);}finally{$('run').disabled=false;}};
@@ -80,5 +122,5 @@ function render(data){
 }
 async function history(){const rows=await api('/api/runs');$('history-list').replaceChildren();if(!rows.length){$('history-list').append(text('p','No runs yet. Start with the synthetic demo.','help'));return;}for(const r of rows){const row=text('div','','history-row'),info=document.createElement('div'),actions=text('div','','history-actions');info.append(text('strong',r.brand),text('p',`${r.mode} / ${r.status} / ${new Date(r.started_at).toLocaleString()}${r.parent_audit_id?' / continuation':''}`));const b=text('button','Inspect','quiet');b.onclick=()=>watch(r.id);actions.append(b);if(r.can_continue){const c=text('button','Preview remaining work','secondary');c.onclick=async()=>{c.disabled=true;try{showPlan(await api(`/api/runs/${r.id}/continuation`,{}));}catch(e){notify(e.message);}finally{c.disabled=false;}};actions.append(c);}row.append(info,actions);$('history-list').append(row);}}
 $('refresh-history').onclick=()=>history().catch(e=>notify(e.message));
-$('load-pilot').onclick=async()=>{try{applyConfig(await api('/api/pilot'));document.querySelector('[name=mode][value=live]').checked=true;modeChanged();await loadModels();for(const o of $('models').options)o.selected=config.models.includes(o.value);$('evaluator').value=config.evaluator_model||'';notify('Pilot loaded. Review the questions and models, then preview the combined cost.');}catch(e){notify(e.message);}};
+$('load-pilot').onclick=async()=>{try{applyConfig(await api('/api/pilot'));document.querySelector('[name=mode][value=live]').checked=true;modeChanged();await loadModels();selectedModelIds=new Set(config.models);renderModelPicker();$('evaluator').value=config.evaluator_model||'';notify('Pilot loaded. Review the questions and models, then preview the combined cost.');}catch(e){notify(e.message);}};
 (async()=>{try{const setup=await api('/api/setup');token=setup.token;applyConfig(setup.config);$('key-status').textContent=setup.key_configured?'OpenRouter key configured':'Demo ready; API key not configured';$('search-key-status').textContent=setup.search_key_configured?'Brave key configured.':'Add BRAVE_SEARCH_API_KEY to .env or .env.local to run searches.';await history();}catch(e){notify(e.message);}})();
